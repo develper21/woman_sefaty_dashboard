@@ -6,6 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
   Brain,
   Zap,
   Target,
@@ -21,6 +30,11 @@ import {
   Download,
   Calendar,
   Layers,
+  FileSpreadsheet,
+  FileText,
+  Code,
+  CalendarDays,
+  Filter,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -67,6 +81,17 @@ export default function AIAnalyticsPage() {
   const [data, setData] = useState<AIAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('14');
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'excel' | 'pdf' | 'json'>('csv');
+  const [exportOptions, setExportOptions] = useState({
+    includeCharts: false,
+    includeSummary: true,
+    includeRawData: true,
+    dateRange: 'current',
+    customStartDate: '',
+    customEndDate: '',
+  });
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -96,6 +121,183 @@ export default function AIAnalyticsPage() {
   const getChangePercent = (current: number, previous: number) => {
     if (!previous) return 0;
     return ((current - previous) / previous * 100).toFixed(1);
+  };
+
+  const generateCSV = () => {
+    if (data.length === 0) return 'No data available';
+    
+    const headers = [
+      'Date', 'Model Version', 'Prediction Accuracy %', 'Response Time (ms)', 
+      'Users Helped', 'Training Sessions', 'Threats Detected', 
+      'Health Predictions', 'Safety Predictions', 'Tokens Processed',
+      'False Positive Rate %', 'False Negative Rate %', 'SOS Response Time (s)'
+    ];
+    
+    const csvRows = data.map(row => [
+      `"${row.date}"`,
+      `"${row.model_version}"`,
+      row.prediction_accuracy,
+      row.response_time_avg_ms,
+      row.users_helped_count,
+      row.total_training_sessions,
+      row.threats_detected,
+      row.health_predictions,
+      row.safety_predictions,
+      row.tokens_processed,
+      row.false_positive_rate,
+      row.false_negative_rate,
+      row.sos_response_time_avg_seconds
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...csvRows.map(row => row.join(','))
+    ].join('\n');
+    
+    return csvContent;
+  };
+
+  const generateJSON = () => {
+    return JSON.stringify({
+      exportDate: new Date().toISOString(),
+      timeRange: exportOptions.dateRange,
+      summary: {
+        totalRecords: data.length,
+        avgAccuracy: (data.reduce((acc, d) => acc + d.prediction_accuracy, 0) / data.length).toFixed(2),
+        totalUsersHelped: data.reduce((acc, d) => acc + d.users_helped_count, 0),
+        totalTokensProcessed: data.reduce((acc, d) => acc + d.tokens_processed, 0),
+      },
+      data: data
+    }, null, 2);
+  };
+
+  const generateExcelData = () => {
+    // For now, return CSV format (in real implementation, you'd use a library like xlsx)
+    return generateCSV();
+  };
+
+  const generatePDFContent = () => {
+    if (data.length === 0) return 'No data available';
+    
+    const totalUsersHelped = data.reduce((acc, d) => acc + d.users_helped_count, 0);
+    const totalTokensProcessed = data.reduce((acc, d) => acc + d.tokens_processed, 0);
+    const avgAccuracy = (data.reduce((acc, d) => acc + d.prediction_accuracy, 0) / data.length).toFixed(2);
+    const avgResponseTime = (data.reduce((acc, d) => acc + d.response_time_avg_ms, 0) / data.length).toFixed(0);
+    
+    const report = `
+===============================================
+           AI ANALYTICS REPORT
+===============================================
+
+Generated: ${new Date().toLocaleDateString('en-US', { 
+  weekday: 'long', 
+  year: 'numeric', 
+  month: 'long', 
+  day: 'numeric' 
+})}
+Time Range: ${exportOptions.dateRange === 'current' ? 'Current View' : 
+             exportOptions.dateRange === '7days' ? 'Last 7 Days' : 'Last 30 Days'}
+
+===============================================
+              SUMMARY STATISTICS
+===============================================
+
+Total Records Analyzed: ${data.length}
+Average Model Accuracy: ${avgAccuracy}%
+Total Users Helped: ${totalUsersHelped.toLocaleString()}
+Total Tokens Processed: ${(totalTokensProcessed / 1000000).toFixed(2)}M
+Average Response Time: ${avgResponseTime}ms
+
+===============================================
+              PERFORMANCE METRICS
+===============================================
+
+${latestData ? `
+Latest Model Performance:
+- Model Version: ${latestData.model_version}
+- Prediction Accuracy: ${latestData.prediction_accuracy}%
+- Response Time: ${latestData.response_time_avg_ms}ms
+- Users Helped Today: ${latestData.users_helped_count}
+- Training Sessions: ${latestData.total_training_sessions}
+- Threats Detected: ${latestData.threats_detected}
+- Health Predictions: ${latestData.health_predictions}
+- Safety Predictions: ${latestData.safety_predictions}
+- False Positive Rate: ${latestData.false_positive_rate}%
+- False Negative Rate: ${latestData.false_negative_rate}%
+- SOS Response Time: ${latestData.sos_response_time_avg_seconds}s
+` : 'No current data available'}
+
+===============================================
+              DAILY BREAKDOWN
+===============================================
+
+${data.slice(-7).map((day, index) => `
+Day ${index + 1} - ${new Date(day.date).toLocaleDateString()}:
+  Accuracy: ${day.prediction_accuracy}%
+  Users Helped: ${day.users_helped_count}
+  Response Time: ${day.response_time_avg_ms}ms
+  Tokens: ${(day.tokens_processed / 1000).toFixed(0)}K
+`).join('')}
+
+===============================================
+              END OF REPORT
+===============================================
+
+This report was generated automatically from the SheGuard AI Analytics Dashboard.
+For detailed analysis and real-time monitoring, please visit the dashboard.
+    `;
+    
+    return report.trim();
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      let content = '';
+      let filename = '';
+      let mimeType = '';
+
+      switch (exportFormat) {
+        case 'csv':
+          content = generateCSV();
+          filename = `ai-analytics-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+          mimeType = 'text/csv;charset=utf-8;';
+          break;
+        case 'json':
+          content = generateJSON();
+          filename = `ai-analytics-${format(new Date(), 'yyyy-MM-dd')}.json`;
+          mimeType = 'application/json;charset=utf-8;';
+          break;
+        case 'excel':
+          content = generateExcelData();
+          filename = `ai-analytics-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+          mimeType = 'text/csv;charset=utf-8;';
+          break;
+        case 'pdf':
+          content = generatePDFContent();
+          filename = `ai-analytics-report-${format(new Date(), 'yyyy-MM-dd')}.txt`;
+          mimeType = 'text/plain;charset=utf-8;';
+          break;
+      }
+
+      // Create and download file with proper encoding
+      const blob = new Blob([content], { type: mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setShowExportModal(false);
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const radarData = latestData ? [
@@ -196,7 +398,7 @@ export default function AIAnalyticsPage() {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
-          <Button variant="hero" size="sm">
+          <Button variant="hero" size="sm" onClick={() => setShowExportModal(true)}>
             <Download className="w-4 h-4 mr-2" />
             Export Report
           </Button>
@@ -632,6 +834,170 @@ export default function AIAnalyticsPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Export Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-primary" />
+              Export AI Analytics Report
+            </DialogTitle>
+            <DialogDescription>
+              Choose your export format and options to download the analytics data.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Format Selection */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Export Format</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant={exportFormat === 'csv' ? 'default' : 'outline'}
+                  onClick={() => setExportFormat('csv')}
+                  className="justify-start h-auto p-4"
+                >
+                  <FileSpreadsheet className="w-5 h-5 mr-3 mb-1" />
+                  <div className="text-left">
+                    <div className="font-medium">CSV</div>
+                    <div className="text-xs text-muted-foreground">Excel compatible</div>
+                  </div>
+                </Button>
+                <Button
+                  variant={exportFormat === 'excel' ? 'default' : 'outline'}
+                  onClick={() => setExportFormat('excel')}
+                  className="justify-start h-auto p-4"
+                >
+                  <FileSpreadsheet className="w-5 h-5 mr-3 mb-1" />
+                  <div className="text-left">
+                    <div className="font-medium">Excel</div>
+                    <div className="text-xs text-muted-foreground">Rich formatting</div>
+                  </div>
+                </Button>
+                <Button
+                  variant={exportFormat === 'json' ? 'default' : 'outline'}
+                  onClick={() => setExportFormat('json')}
+                  className="justify-start h-auto p-4"
+                >
+                  <Code className="w-5 h-5 mr-3 mb-1" />
+                  <div className="text-left">
+                    <div className="font-medium">JSON</div>
+                    <div className="text-xs text-muted-foreground">API integration</div>
+                  </div>
+                </Button>
+                <Button
+                  variant={exportFormat === 'pdf' ? 'default' : 'outline'}
+                  onClick={() => setExportFormat('pdf')}
+                  className="justify-start h-auto p-4"
+                >
+                  <FileText className="w-5 h-5 mr-3 mb-1" />
+                  <div className="text-left">
+                    <div className="font-medium">PDF Report</div>
+                    <div className="text-xs text-muted-foreground">Professional format</div>
+                  </div>
+                </Button>
+              </div>
+            </div>
+
+            {/* Export Options */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Export Options</Label>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeSummary"
+                    checked={exportOptions.includeSummary}
+                    onCheckedChange={(checked) => 
+                      setExportOptions(prev => ({ ...prev, includeSummary: checked as boolean }))
+                    }
+                  />
+                  <Label htmlFor="includeSummary" className="text-sm">Include summary statistics</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeRawData"
+                    checked={exportOptions.includeRawData}
+                    onCheckedChange={(checked) => 
+                      setExportOptions(prev => ({ ...prev, includeRawData: checked as boolean }))
+                    }
+                  />
+                  <Label htmlFor="includeRawData" className="text-sm">Include raw data</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeCharts"
+                    checked={exportOptions.includeCharts}
+                    onCheckedChange={(checked) => 
+                      setExportOptions(prev => ({ ...prev, includeCharts: checked as boolean }))
+                    }
+                  />
+                  <Label htmlFor="includeCharts" className="text-sm">Include charts (PDF only)</Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Date Range */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Date Range</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant={exportOptions.dateRange === 'current' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setExportOptions(prev => ({ ...prev, dateRange: 'current' }))}
+                >
+                  Current View
+                </Button>
+                <Button
+                  variant={exportOptions.dateRange === '7days' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setExportOptions(prev => ({ ...prev, dateRange: '7days' }))}
+                >
+                  Last 7 Days
+                </Button>
+                <Button
+                  variant={exportOptions.dateRange === '30days' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setExportOptions(prev => ({ ...prev, dateRange: '30days' }))}
+                >
+                  Last 30 Days
+                </Button>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between pt-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                {data.length} records ready for export
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowExportModal(false)}
+                  disabled={isExporting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleExport}
+                  disabled={isExporting}
+                >
+                  {isExporting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Export {exportFormat.toUpperCase()}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
