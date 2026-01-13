@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { NotificationDropdown } from '@/components/admin/NotificationDropdown';
 import {
   Users,
   Brain,
@@ -208,10 +209,7 @@ export default function AdminDashboard() {
             <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
             System Online
           </Badge>
-          <Button variant="outline" size="sm">
-            <Bell className="w-4 h-4 mr-2" />
-            Alerts
-          </Button>
+          <NotificationDropdown />
           <Button variant="hero" size="sm">
             <BarChart3 className="w-4 h-4 mr-2" />
             Generate Report
