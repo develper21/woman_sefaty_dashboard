@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminSidebar } from './AdminSidebar';
@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export function AdminLayout() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -36,9 +37,12 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto">
+    <div className="h-screen flex bg-background overflow-hidden">
+      <AdminSidebar onCollapseChange={setSidebarCollapsed} />
+      <main 
+        className="flex-1 overflow-y-auto transition-all duration-300" 
+        style={{ marginLeft: sidebarCollapsed ? '5rem' : '16rem' }}
+      >
         <Outlet />
       </main>
     </div>
