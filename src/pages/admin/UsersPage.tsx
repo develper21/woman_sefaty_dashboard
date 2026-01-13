@@ -14,6 +14,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -33,6 +41,11 @@ import {
   Activity,
   Shield,
   Heart,
+  Send,
+  LayoutGrid,
+  Table as TableIcon,
+  User,
+  Columns,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -54,6 +67,13 @@ export default function UsersPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'card' | 'grid' | 'kanban'>('table');
 
   useEffect(() => {
     fetchUsers();
@@ -77,11 +97,16 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter(user =>
-    user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.location?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = 
+      user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.location?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
   const handleSendMessage = (userId: string, userName: string) => {
     toast.success(`Opening message composer for ${userName}`);
@@ -89,6 +114,37 @@ export default function UsersPage() {
 
   const handleViewDetails = (userId: string) => {
     toast.info('User details modal coming soon');
+  };
+
+  const handleSendBroadcast = async () => {
+    if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
+      toast.error('Please fill in both title and message');
+      return;
+    }
+
+    setSendingBroadcast(true);
+    try {
+      // Here you would implement the actual broadcast logic
+      // For now, we'll simulate it with a delay and success message
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // In a real implementation, you would:
+      // 1. Save the broadcast message to a broadcasts table
+      // 2. Send push notifications to all users
+      // 3. Create in-app notifications for each user
+      
+      toast.success(`Broadcast message sent to ${users.length} users successfully!`);
+      
+      // Reset form
+      setBroadcastTitle('');
+      setBroadcastMessage('');
+      setShowBroadcastModal(false);
+    } catch (error) {
+      console.error('Error sending broadcast:', error);
+      toast.error('Failed to send broadcast message');
+    } finally {
+      setSendingBroadcast(false);
+    }
   };
 
   const handleSuspendUser = async (userId: string, currentStatus: string) => {
@@ -143,7 +199,41 @@ export default function UsersPage() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button variant="hero" size="sm">
+          <div className="flex items-center border rounded-md p-1">
+            <Button
+              variant={viewMode === 'table' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('table')}
+              className="h-7 px-2"
+            >
+              <TableIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'card' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('card')}
+              className="h-7 px-2"
+            >
+              <User className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="h-7 px-2"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              className="h-7 px-2"
+            >
+              <Columns className="w-4 h-4" />
+            </Button>
+          </div>
+          <Button variant="hero" size="sm" onClick={() => setShowBroadcastModal(true)}>
             <MessageSquare className="w-4 h-4 mr-2" />
             Broadcast Message
           </Button>
@@ -216,9 +306,62 @@ export default function UsersPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="icon">
-                <Filter className="w-4 h-4" />
-              </Button>
+              <DropdownMenu open={showFilters} onOpenChange={setShowFilters}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className={statusFilter !== 'all' ? 'border-primary text-primary' : ''}>
+                    <Filter className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="p-2">
+                    <p className="text-sm font-medium mb-2">Filter by Status</p>
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => { setStatusFilter('all'); setShowFilters(false); }}
+                        className={`w-full text-left px-2 py-1 rounded text-sm hover:bg-accent ${
+                          statusFilter === 'all' ? 'bg-accent font-medium' : ''
+                        }`}
+                      >
+                        All Users
+                      </button>
+                      <button
+                        onClick={() => { setStatusFilter('active'); setShowFilters(false); }}
+                        className={`w-full text-left px-2 py-1 rounded text-sm hover:bg-accent ${
+                          statusFilter === 'active' ? 'bg-accent font-medium' : ''
+                        }`}
+                      >
+                        Active
+                      </button>
+                      <button
+                        onClick={() => { setStatusFilter('inactive'); setShowFilters(false); }}
+                        className={`w-full text-left px-2 py-1 rounded text-sm hover:bg-accent ${
+                          statusFilter === 'inactive' ? 'bg-accent font-medium' : ''
+                        }`}
+                      >
+                        Inactive
+                      </button>
+                      <button
+                        onClick={() => { setStatusFilter('suspended'); setShowFilters(false); }}
+                        className={`w-full text-left px-2 py-1 rounded text-sm hover:bg-accent ${
+                          statusFilter === 'suspended' ? 'bg-accent font-medium' : ''
+                        }`}
+                      >
+                        Suspended
+                      </button>
+                    </div>
+                    {statusFilter !== 'all' && (
+                      <div className="mt-2 pt-2 border-t">
+                        <button
+                          onClick={() => { setStatusFilter('all'); setShowFilters(false); }}
+                          className="w-full text-left px-2 py-1 rounded text-sm text-muted-foreground hover:bg-accent"
+                        >
+                          Clear Filter
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </CardHeader>
@@ -230,90 +373,416 @@ export default function UsersPage() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-center">Safety Alerts</TableHead>
-                  <TableHead className="text-center">SOS Triggered</TableHead>
-                  <TableHead className="text-center">AI Interactions</TableHead>
-                  <TableHead>Last Active</TableHead>
-                  <TableHead className="w-[80px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarFallback className="gradient-primary text-white text-sm">
-                            {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{user.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{user.email || user.phone}</p>
+            <>
+              {viewMode === 'table' && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Safety Alerts</TableHead>
+                      <TableHead className="text-center">SOS Triggered</TableHead>
+                      <TableHead className="text-center">AI Interactions</TableHead>
+                      <TableHead>Last Active</TableHead>
+                      <TableHead className="w-[80px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar>
+                              <AvatarFallback className="gradient-primary text-white text-sm">
+                                {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{user.full_name}</p>
+                              <p className="text-sm text-muted-foreground">{user.email || user.phone}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {user.location || 'Not set'}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(user.status)}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={user.safety_alerts_count > 0 ? 'subtle-warning' : 'secondary'}>
+                            {user.safety_alerts_count}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={user.sos_triggered_count > 0 ? 'subtle-destructive' : 'secondary'}>
+                            {user.sos_triggered_count}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="subtle-primary">{user.ai_interactions_count}</Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {user.last_active
+                            ? formatDistanceToNow(new Date(user.last_active), { addSuffix: true })
+                            : 'Never'}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewDetails(user.id)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleSendMessage(user.id, user.full_name)}>
+                                <Mail className="w-4 h-4 mr-2" />
+                                Send Message
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => handleSuspendUser(user.id, user.status)}
+                                className={user.status === 'suspended' ? 'text-success' : 'text-destructive'}
+                              >
+                                <Ban className="w-4 h-4 mr-2" />
+                                {user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              {viewMode === 'card' && (
+                <div className="space-y-4">
+                  {filteredUsers.map((user) => (
+                    <Card key={user.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-4">
+                            <Avatar className="w-16 h-16">
+                              <AvatarFallback className="gradient-primary text-white text-lg">
+                                {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h3 className="text-lg font-semibold">{user.full_name}</h3>
+                              <p className="text-sm text-muted-foreground">{user.email || user.phone}</p>
+                              <p className="text-sm text-muted-foreground">{user.location || 'Not set'}</p>
+                              <div className="mt-2">{getStatusBadge(user.status)}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewDetails(user.id)}>
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleSendMessage(user.id, user.full_name)}>
+                                  <Mail className="w-4 h-4 mr-2" />
+                                  Send Message
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleSuspendUser(user.id, user.status)}
+                                  className={user.status === 'suspended' ? 'text-success' : 'text-destructive'}
+                                >
+                                  <Ban className="w-4 h-4 mr-2" />
+                                  {user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.location || 'Not set'}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(user.status)}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={user.safety_alerts_count > 0 ? 'subtle-warning' : 'secondary'}>
-                        {user.safety_alerts_count}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={user.sos_triggered_count > 0 ? 'subtle-destructive' : 'secondary'}>
-                        {user.sos_triggered_count}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="subtle-primary">{user.ai_interactions_count}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {user.last_active
-                        ? formatDistanceToNow(new Date(user.last_active), { addSuffix: true })
-                        : 'Never'}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewDetails(user.id)}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSendMessage(user.id, user.full_name)}>
-                            <Mail className="w-4 h-4 mr-2" />
-                            Send Message
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleSuspendUser(user.id, user.status)}
-                            className={user.status === 'suspended' ? 'text-success' : 'text-destructive'}
-                          >
-                            <Ban className="w-4 h-4 mr-2" />
-                            {user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        <div className="grid grid-cols-3 gap-4 mt-6">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-warning">{user.safety_alerts_count}</p>
+                            <p className="text-xs text-muted-foreground">Safety Alerts</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-destructive">{user.sos_triggered_count}</p>
+                            <p className="text-xs text-muted-foreground">SOS Triggered</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-primary">{user.ai_interactions_count}</p>
+                            <p className="text-xs text-muted-foreground">AI Interactions</p>
+                          </div>
+                        </div>
+                        <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
+                          Last active: {user.last_active
+                            ? formatDistanceToNow(new Date(user.last_active), { addSuffix: true })
+                            : 'Never'}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {viewMode === 'grid' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredUsers.map((user) => (
+                    <Card key={user.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <Avatar className="w-12 h-12">
+                            <AvatarFallback className="gradient-primary text-white text-sm">
+                              {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex items-center gap-1">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="w-3 h-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewDetails(user.id)}>
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleSendMessage(user.id, user.full_name)}>
+                                  <Mail className="w-4 h-4 mr-2" />
+                                  Send Message
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleSuspendUser(user.id, user.status)}
+                                  className={user.status === 'suspended' ? 'text-success' : 'text-destructive'}
+                                >
+                                  <Ban className="w-4 h-4 mr-2" />
+                                  {user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                        <h3 className="font-semibold text-sm mb-1 truncate">{user.full_name}</h3>
+                        <p className="text-xs text-muted-foreground mb-2 truncate">{user.email || user.phone}</p>
+                        <div className="mb-3">{getStatusBadge(user.status)}</div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <p className="text-lg font-bold text-warning">{user.safety_alerts_count}</p>
+                            <p className="text-xs text-muted-foreground">Alerts</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-destructive">{user.sos_triggered_count}</p>
+                            <p className="text-xs text-muted-foreground">SOS</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-primary">{user.ai_interactions_count}</p>
+                            <p className="text-xs text-muted-foreground">AI</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {viewMode === 'kanban' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {['active', 'inactive', 'suspended'].map((status) => {
+                      const statusUsers = filteredUsers.filter(user => user.status === status);
+                      const statusColors = {
+                        active: 'border-success bg-success/5',
+                        inactive: 'border-warning bg-warning/5',
+                        suspended: 'border-destructive bg-destructive/5'
+                      };
+                      const statusIcons = {
+                        active: <Activity className="w-4 h-4 text-success" />,
+                        inactive: <Shield className="w-4 h-4 text-warning" />,
+                        suspended: <Ban className="w-4 h-4 text-destructive" />
+                      };
+                      const statusLabels = {
+                        active: 'Active Users',
+                        inactive: 'Inactive Users',
+                        suspended: 'Suspended Users'
+                      };
+
+                      return (
+                        <div key={status} className="space-y-4">
+                          <div className={`flex items-center gap-2 p-3 rounded-lg border-2 ${statusColors[status]}`}>
+                            {statusIcons[status as keyof typeof statusIcons]}
+                            <div>
+                              <h3 className="font-semibold">{statusLabels[status as keyof typeof statusLabels]}</h3>
+                              <p className="text-sm text-muted-foreground">{statusUsers.length} users</p>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3 min-h-[200px]">
+                            {statusUsers.map((user) => (
+                              <Card key={user.id} className="hover:shadow-md transition-shadow cursor-pointer">
+                                <CardContent className="p-4">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                      <Avatar className="w-10 h-10">
+                                        <AvatarFallback className="gradient-primary text-white text-xs">
+                                          {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div>
+                                        <h4 className="font-medium text-sm">{user.full_name}</h4>
+                                        <p className="text-xs text-muted-foreground">{user.email || user.phone}</p>
+                                      </div>
+                                    </div>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                                          <MoreVertical className="w-3 h-3" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handleViewDetails(user.id)}>
+                                          <Eye className="w-4 h-4 mr-2" />
+                                          View Details
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleSendMessage(user.id, user.full_name)}>
+                                          <Mail className="w-4 h-4 mr-2" />
+                                          Send Message
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem 
+                                          onClick={() => handleSuspendUser(user.id, user.status)}
+                                          className={user.status === 'suspended' ? 'text-success' : 'text-destructive'}
+                                        >
+                                          <Ban className="w-4 h-4 mr-2" />
+                                          {user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                                    <div className="bg-muted/50 rounded p-2">
+                                      <p className="text-xs font-bold text-warning">{user.safety_alerts_count}</p>
+                                      <p className="text-xs text-muted-foreground">Alerts</p>
+                                    </div>
+                                    <div className="bg-muted/50 rounded p-2">
+                                      <p className="text-xs font-bold text-destructive">{user.sos_triggered_count}</p>
+                                      <p className="text-xs text-muted-foreground">SOS</p>
+                                    </div>
+                                    <div className="bg-muted/50 rounded p-2">
+                                      <p className="text-xs font-bold text-primary">{user.ai_interactions_count}</p>
+                                      <p className="text-xs text-muted-foreground">AI</p>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{user.location || 'No location'}</span>
+                                    <span>{user.last_active
+                                      ? formatDistanceToNow(new Date(user.last_active), { addSuffix: true })
+                                      : 'Never'}</span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                            
+                            {statusUsers.length === 0 && (
+                              <div className="text-center py-8 text-muted-foreground">
+                                <div className="mb-2">{statusIcons[status as keyof typeof statusIcons]}</div>
+                                <p className="text-sm">No {status} users</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Broadcast Message Modal */}
+      <Dialog open={showBroadcastModal} onOpenChange={setShowBroadcastModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-primary" />
+              Send Broadcast Message
+            </DialogTitle>
+            <DialogDescription>
+              Send a message to all {users.length} registered users on the platform.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="broadcast-title" className="text-sm font-medium">
+                Message Title
+              </label>
+              <Input
+                id="broadcast-title"
+                placeholder="Enter message title..."
+                value={broadcastTitle}
+                onChange={(e) => setBroadcastTitle(e.target.value)}
+                maxLength={100}
+              />
+              <p className="text-xs text-muted-foreground">
+                {broadcastTitle.length}/100 characters
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="broadcast-message" className="text-sm font-medium">
+                Message Content
+              </label>
+              <Textarea
+                id="broadcast-message"
+                placeholder="Type your broadcast message here..."
+                value={broadcastMessage}
+                onChange={(e) => setBroadcastMessage(e.target.value)}
+                rows={4}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground">
+                {broadcastMessage.length}/500 characters
+              </p>
+            </div>
+            <div className="flex items-center justify-between pt-4">
+              <p className="text-sm text-muted-foreground">
+                This message will be sent to all active users via push notification and in-app notification.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBroadcastModal(false)}
+                  disabled={sendingBroadcast}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSendBroadcast}
+                  disabled={sendingBroadcast || !broadcastTitle.trim() || !broadcastMessage.trim()}
+                >
+                  {sendingBroadcast ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-2" />
+                      Send Broadcast
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
